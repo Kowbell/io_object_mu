@@ -439,20 +439,22 @@ def create_object_paths(mu, obj=None, parents=None):
         create_object_paths(mu, child, parents)
     parents.pop()
 
-def process_mu(scene, mu, mudir, create_colliders):
+def process_mu(scene, mu, mudir, create_colliders, snap_to_vector):
     create_textures(mu, mudir)
     create_materials(mu)
     create_object_paths(mu)
-    return create_object(scene, mu, mu.obj, None, create_colliders)
+    obj = create_object(scene, mu, mu.obj, None, create_colliders)
+    obj.location = snap_to_vector 
+    return obj
 
-def import_mu(scene, filepath, create_colliders):
+def import_mu(scene, filepath, create_colliders, snap_to_vector):
     mu = Mu()
     if not mu.read(filepath):
         return None
 
-    return process_mu(scene, mu, os.path.dirname(filepath), create_colliders)
+    return process_mu(scene, mu, os.path.dirname(filepath), create_colliders, snap_to_vector)
 
-def import_mu_op(self, context, filepath, create_colliders):
+def import_mu_op(self, context, filepath, create_colliders, snap_to_location, snap_to_vector):
     operator = self
     undo = bpy.context.user_preferences.edit.use_global_undo
     bpy.context.user_preferences.edit.use_global_undo = False
@@ -468,7 +470,14 @@ def import_mu_op(self, context, filepath, create_colliders):
         return {'CANCELLED'}
 
     scene = bpy.context.scene
-    obj = process_mu(scene, mu, os.path.dirname(filepath), create_colliders)
+
+    if(snap_to_location == 'ORIGIN'):
+        snap_to_vector = (0, 0, 0)
+    elif(snap_to_location == 'CURSOR'):
+        snap_to_vector = bpy.context.scene.cursor_location
+    # else: Custom, and we can keep snap_to_vector as it is already the user-set value
+
+    obj = process_mu(scene, mu, os.path.dirname(filepath), create_colliders, snap_to_vector)
     bpy.context.scene.objects.active = obj
     obj.select = True
 
@@ -488,6 +497,18 @@ class ImportMu(bpy.types.Operator, ImportHelper):
     create_colliders = BoolProperty(name="Create Colliders",
             description="Disable to import only visual and hierarchy elements",
                                     default=True)
+
+    snap_to_location = EnumProperty(name="Auto Set Origin",
+            description="Where to center the object in the scene",
+            items=[
+                ("ORIGIN", "Origin", "(0, 0, 0)", 0), 
+                ("CURSOR", "Cursor", "3D Cursor", 1),
+                ("VECTOR", "Custom", "User-specified Vector", 2)],
+            default='ORIGIN')
+
+    snap_to_vector = FloatVectorProperty(name="Custom Origin Location",
+            description="If \"Auto Set Origin\" is set to Custom, it will use this vector",
+                                    default=(0.0, 0.0, 0.0))
 
     def execute(self, context):
         keywords = self.as_keywords (ignore=("filter_glob",))
