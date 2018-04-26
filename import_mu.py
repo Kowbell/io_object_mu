@@ -285,7 +285,7 @@ def create_collider(mu, muobj):
         collider.build_collider(cobj, obj.muproperties)
     return obj
 
-def create_object(scene, mu, muobj, parent, create_colliders):
+def create_object(scene, mu, muobj, parent, create_colliders, wireframe_colliders=True):
     obj = None
     mesh = None
     if hasattr(muobj, "shared_mesh"):
@@ -320,10 +320,12 @@ def create_object(scene, mu, muobj, parent, create_colliders):
     if create_colliders and hasattr(muobj, "collider"):
         cobj = create_collider(mu, muobj)
         cobj.parent = obj
+        if(wireframe_colliders):
+            cobj.draw_type = 'WIRE'
     obj.parent = parent
     muobj.bobj = obj
     for child in muobj.children:
-        create_object(scene, mu, child, obj, create_colliders)
+        create_object(scene, mu, child, obj, create_colliders, wireframe_colliders)
     if hasattr(muobj, "animation"):
         for clip in muobj.animation.clips:
             create_action(mu, muobj.path, clip)
@@ -439,11 +441,11 @@ def create_object_paths(mu, obj=None, parents=None):
         create_object_paths(mu, child, parents)
     parents.pop()
 
-def process_mu(scene, mu, mudir, create_colliders, snap_to_vector):
+def process_mu(scene, mu, mudir, create_colliders, snap_to_vector, wireframe_colliders):
     create_textures(mu, mudir)
     create_materials(mu)
     create_object_paths(mu)
-    obj = create_object(scene, mu, mu.obj, None, create_colliders)
+    obj = create_object(scene, mu, mu.obj, None, create_colliders, wireframe_colliders)
     obj.location = snap_to_vector 
     return obj
 
@@ -452,9 +454,9 @@ def import_mu(scene, filepath, create_colliders, snap_to_vector):
     if not mu.read(filepath):
         return None
 
-    return process_mu(scene, mu, os.path.dirname(filepath), create_colliders, snap_to_vector)
+    return process_mu(scene, mu, os.path.dirname(filepath), create_colliders, snap_to_vector, wireframe_colliders)
 
-def import_mu_op(self, context, filepath, create_colliders, snap_to_location, snap_to_vector):
+def import_mu_op(self, context, filepath, create_colliders, snap_to_location, snap_to_vector, wireframe_colliders):
     operator = self
     undo = bpy.context.user_preferences.edit.use_global_undo
     bpy.context.user_preferences.edit.use_global_undo = False
@@ -477,7 +479,7 @@ def import_mu_op(self, context, filepath, create_colliders, snap_to_location, sn
         snap_to_vector = bpy.context.scene.cursor_location
     # else: Custom, and we can keep snap_to_vector as it is already the user-set value
 
-    obj = process_mu(scene, mu, os.path.dirname(filepath), create_colliders, snap_to_vector)
+    obj = process_mu(scene, mu, os.path.dirname(filepath), create_colliders, snap_to_vector, wireframe_colliders)
     bpy.context.scene.objects.active = obj
     obj.select = True
 
@@ -496,6 +498,10 @@ class ImportMu(bpy.types.Operator, ImportHelper):
 
     create_colliders = BoolProperty(name="Create Colliders",
             description="Disable to import only visual and hierarchy elements",
+                                    default=True)
+
+    wireframe_colliders = BoolProperty(name="Wireframe Colliders",
+            description="Sets collision meshes max draw type to Wireframe",
                                     default=True)
 
     snap_to_location = EnumProperty(name="Auto Set Origin",
